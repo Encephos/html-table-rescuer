@@ -148,3 +148,16 @@ def test_repr_markdown_for_notebooks():
     html = "<table><tr><th>A</th></tr><tr><td>1</td></tr></table>"
     table = TableParser(html).parse()[0]
     assert table._repr_markdown_() == table.to_markdown()
+
+
+def test_style_and_script_content_is_not_cell_text():
+    """CMS exports inline <style> blocks in tables; CSS must not leak into cells."""
+    html = """
+    <table>
+        <tr><th><style>.foo{color:red}</style>Header</th></tr>
+        <tr><td><script>alert(1)</script>Value</td></tr>
+    </table>
+    """
+    table = TableParser(html).parse()[0]
+    assert table.headers == ["Header"]
+    assert table.rows[0] == ["Value"]
