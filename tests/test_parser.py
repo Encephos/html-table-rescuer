@@ -161,3 +161,140 @@ def test_style_and_script_content_is_not_cell_text():
     table = TableParser(html).parse()[0]
     assert table.headers == ["Header"]
     assert table.rows[0] == ["Value"]
+
+
+# --- Verschachtelte Tabellen --------------------------------------------------
+
+def test_nested_table_is_emitted_once():
+    """Die innere Tabelle steckt im Text der äußeren Zelle und darf nicht doppelt raus."""
+    html = """
+    <table>
+        <tr><th>Outer</th></tr>
+        <tr><td><table><tr><th>Inner</th></tr><tr><td>x</td></tr></table></td></tr>
+    </table>
+    """
+    tables = TableParser(html).parse()
+    assert len(tables) == 1
+    assert tables[0].headers == ["Outer"]
+
+
+def test_sibling_tables_are_both_emitted():
+    """Nebeneinanderliegende Tabellen sind beide Top-Level und bleiben erhalten."""
+    html = (
+        "<table><tr><th>A</th></tr><tr><td>1</td></tr></table>"
+        "<table><tr><th>B</th></tr><tr><td>2</td></tr></table>"
+    )
+    assert len(TableParser(html).parse()) == 2
+
+
+# --- Mehrzeilige Header -------------------------------------------------------
+
+STACKED_HEADER = """
+<table>
+    <tr><th rowspan="2">Title</th><th colspan="3">Peak positions</th></tr>
+    <tr><th>US</th><th>AUS</th><th>CAN</th></tr>
+    <tr><td>Thriller</td><td>1</td><td>2</td><td>3</td></tr>
+</table>
+"""
+
+
+def test_stacked_header_is_merged():
+    table = TableParser(STACKED_HEADER).parse()[0]
+    assert table.headers == [
+        "Title",
+        "Peak positions - US",
+        "Peak positions - AUS",
+        "Peak positions - CAN",
+    ]
+    # Die zweite Headerzeile darf nicht als Datenzeile auftauchen
+    assert table.rows == [["Thriller", "1", "2", "3"]]
+
+
+def test_header_separator_is_configurable():
+    config = ParseConfig(header_separator=" / ")
+    table = TableParser(STACKED_HEADER, config).parse()[0]
+    assert table.headers[1] == "Peak positions / US"
+
+
+def test_thead_with_multiple_rows():
+    html = """
+    <table>
+        <thead>
+            <tr><th rowspan="2">Region</th><th colspan="2">2024</th></tr>
+            <tr><th>Q1</th><th>Q2</th></tr>
+        </thead>
+        <tbody><tr><td>EU</td><td>10</td><td>20</td></tr></tbody>
+    </table>
+    """
+    table = TableParser(html).parse()[0]
+    assert table.headers == ["Region", "2024 - Q1", "2024 - Q2"]
+    assert table.rows == [["EU", "10", "20"]]
+
+
+def test_single_header_row_behaviour_unchanged():
+    """Einzeiliger Header mit colspan bleibt wie bisher (leere Fortsetzungszelle)."""
+    html = (
+        '<table><tr><th colspan="2">Department</th><th>Employee</th></tr>'
+        "<tr><td>Eng</td><td>Backend</td><td>Ada</td></tr></table>"
+    )
+    table = TableParser(html).parse()[0]
+    assert table.headers == ["Department", "", "Employee"]
+
+
+def test_mixed_row_ends_the_header():
+    """Eine Zeile mit td beendet den Header, auch wenn sie ein th enthält."""
+    html = """
+    <table>
+        <tr><th>A</th><th>B</th></tr>
+        <tr><th>Row label</th><td>1</td></tr>
+    </table>
+    """
+    table = TableParser(html).parse()[0]
+    assert table.headers == ["A", "B"]
+    assert table.rows == [["Row label", "1"]]
+
+
+def test_all_th_table_keeps_a_data_row():
+    """Eine Tabelle aus lauter th darf nicht komplett im Header verschwinden."""
+    html = (
+        "<table><tr><th>A</th></tr><tr><th>B</th></tr><tr><th>C</th></tr></table>"
+    )
+    table = TableParser(html).parse()[0]
+    assert table.rows, "Es muss mindestens eine Datenzeile übrig bleiben"
+
+
+# --- Caption ------------------------------------------------------------------
+
+def test_caption_is_extracted_and_rendered():
+    html = (
+        "<table><caption>Quarterly results</caption>"
+        "<tr><th>Q</th></tr><tr><td>1</td></tr></table>"
+    )
+    table = TableParser(html).parse()[0]
+    assert table.caption == "Quarterly results"
+    assert table.to_markdown().startswith("**Quarterly results**\n\n|")
+    assert table.to_markdown(include_caption=False).startswith("| Q |")
+
+
+def test_caption_absent_is_none():
+    table = TableParser("<table><tr><th>A</th></tr><tr><td>1</td></tr></table>").parse()[0]
+    assert table.caption is None
+
+
+def test_caption_keeps_inline_formatting():
+    html = (
+        "<table><caption>Sales <b>2024</b></caption>"
+        "<tr><th>A</th></tr><tr><td>1</td></tr></table>"
+    )
+    assert TableParser(html).parse()[0].caption == "Sales **2024**"
+
+
+def test_nested_table_caption_does_not_leak():
+    """Die Caption einer verschachtelten Tabelle darf nicht der äußeren zugeschlagen werden."""
+    html = """
+    <table>
+        <tr><th>Outer</th></tr>
+        <tr><td><table><caption>Inner caption</caption><tr><td>x</td></tr></table></td></tr>
+    </table>
+    """
+    assert TableParser(html).parse()[0].caption is None
