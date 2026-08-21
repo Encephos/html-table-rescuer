@@ -46,6 +46,10 @@ llamaindex = [
 haystack = [
     "haystack-ai>=2.0",
 ]
+benchmark = [
+    "pandas>=2.0",
+    "tiktoken>=0.7",
+]
 
 [project.urls]
 Homepage = "https://github.com/Encephos/html-table-rescuer"

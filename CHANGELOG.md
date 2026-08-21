@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Benchmarks (`benchmarks/`, results in `docs/BENCHMARKS.md`) measuring the token
+  cost of each rowspan strategy and comparing against `pandas.read_html` on 30
+  real-world Wikipedia tables — including where pandas wins (it is ~2.6x faster)
+  and a documented limitation around multi-row headers.
+
+### Fixed
+- `<style>` and `<script>` content no longer leaks into cell text. Wikipedia and
+  many CMS exports inline CSS inside tables, which previously ended up as cell
+  content. Found by the new benchmarks.
+
 ## 0.3.1 (2026-07-30)
 
 ### Added

@@ -4,6 +4,10 @@ from bs4 import Comment, NavigableString, Tag
 
 from .models import ParseConfig
 
+# Tags whose text content is code, not cell content. Wikipedia and most CMS
+# exports inline <style> blocks inside tables; their CSS must not become text.
+NON_CONTENT_TAGS = frozenset({"style", "script", "template", "noscript"})
+
 
 def clean_cell_content(cell: Tag, config: ParseConfig) -> str:
     """
@@ -30,6 +34,10 @@ def clean_cell_content(cell: Tag, config: ParseConfig) -> str:
             # Sonderfall <br>
             if element.name == 'br':
                 return "<br>"
+
+            # <style>/<script> enthalten Code, keinen Zellinhalt
+            if element.name in NON_CONTENT_TAGS:
+                return ""
 
             # Wir sammeln zuerst den verarbeiteten Text ALLER Kinder dieses Tags
             child_texts = []
