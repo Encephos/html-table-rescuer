@@ -52,6 +52,9 @@ class HTMLTableRescuerReader(BaseReader):
                 "table_index": idx,
                 "parser": "html_table_rescuer",
             }
+            # Der Tabellentitel ist für Retrieval oft die wertvollste Metadate
+            if table.caption:
+                metadata["caption"] = table.caption
             # extra_info von SimpleDirectoryReader hat Vorrang
             if extra_info:
                 metadata.update(extra_info)

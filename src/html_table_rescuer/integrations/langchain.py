@@ -46,5 +46,8 @@ class HTMLTableRescuerLoader(BaseLoader):
                 "table_index": idx,
                 "parser": "html_table_rescuer"
             }
-            
+            # Der Tabellentitel ist für Retrieval oft die wertvollste Metadate
+            if table.caption:
+                metadata["caption"] = table.caption
+
             yield Document(page_content=md_content, metadata=metadata)

@@ -100,6 +100,9 @@ class HTMLTableRescuerConverter:
                 metadata["parser"] = "html_table_rescuer"
                 if "file_path" in bytestream.meta:
                     metadata["source"] = bytestream.meta["file_path"]
+                # Der Tabellentitel ist für Retrieval oft die wertvollste Metadate
+                if table.caption:
+                    metadata["caption"] = table.caption
                 # Nutzer-Metadaten haben Vorrang
                 metadata.update(extra_meta)
 

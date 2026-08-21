@@ -273,3 +273,31 @@ def test_haystack_runs_in_pipeline(haystack_converter_cls, html_file):
     pipe.add_component("converter", haystack_converter_cls())
     result = pipe.run({"converter": {"sources": [html_file()]}})
     assert len(result["converter"]["documents"]) == 2
+
+
+# --- Caption in den Metadaten aller Integrationen -----------------------------
+
+CAPTION_HTML = (
+    "<table><caption>Quarterly results</caption>"
+    "<tr><th>Q</th><th>Revenue</th></tr><tr><td>Q1</td><td>100</td></tr></table>"
+)
+
+
+def test_langchain_exposes_caption(langchain_loader_cls, html_file):
+    docs = langchain_loader_cls(str(html_file(CAPTION_HTML))).load()
+    assert docs[0].metadata["caption"] == "Quarterly results"
+
+
+def test_langchain_omits_caption_when_absent(langchain_loader_cls, html_file):
+    docs = langchain_loader_cls(str(html_file())).load()
+    assert "caption" not in docs[0].metadata
+
+
+def test_llamaindex_exposes_caption(llamaindex_reader_cls, html_file):
+    docs = llamaindex_reader_cls().load_data(html_file(CAPTION_HTML))
+    assert docs[0].metadata["caption"] == "Quarterly results"
+
+
+def test_haystack_exposes_caption(haystack_converter_cls, html_file):
+    docs = haystack_converter_cls().run(sources=[html_file(CAPTION_HTML)])["documents"]
+    assert docs[0].meta["caption"] == "Quarterly results"

@@ -1,17 +1,35 @@
 # Changelog
 
-## Unreleased
+## 0.4.0 (2026-08-21)
 
 ### Added
+- **Multi-row headers are merged.** A stacked header — a `<th rowspan="2">` next
+  to a grouped `<th colspan="3">`, as used in discographies, sports results and
+  financial reports — now produces one header per column
+  (`Peak positions - US`) instead of pushing the second header row into the
+  data. Configurable via `ParseConfig(header_separator=...)`. This closes the
+  only gap where `pandas.read_html` was measurably more correct; grid agreement
+  with pandas rose from 24/30 to 27/30 on the benchmark corpus.
+- **`<caption>` support.** The table title is extracted into
+  `ParsedTable.caption`, prepended to the Markdown as a bold line (turn off with
+  `to_markdown(include_caption=False)`), and exposed in the metadata of the
+  LangChain, LlamaIndex and Haystack integrations — where it is one of the most
+  valuable fields a retrieved chunk can carry.
 - Benchmarks (`benchmarks/`, results in `docs/BENCHMARKS.md`) measuring the token
   cost of each rowspan strategy and comparing against `pandas.read_html` on 30
-  real-world Wikipedia tables — including where pandas wins (it is ~2.6x faster)
-  and a documented limitation around multi-row headers.
+  real-world Wikipedia tables — including where pandas wins (it is ~2.9x faster).
 
 ### Fixed
+- **Nested tables were emitted twice** — once flattened into the containing
+  cell's text and once as a table of their own — which duplicated content in any
+  downstream index. Only top-level tables are emitted now.
 - `<style>` and `<script>` content no longer leaks into cell text. Wikipedia and
   many CMS exports inline CSS inside tables, which previously ended up as cell
   content. Found by the new benchmarks.
+
+### Changed
+- Tables with a `<caption>` now render with a bold title line above the table by
+  default. Pass `to_markdown(include_caption=False)` for the previous output.
 
 ## 0.3.1 (2026-07-30)
 

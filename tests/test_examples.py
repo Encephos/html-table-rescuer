@@ -21,7 +21,8 @@ def test_example_parses_to_valid_markdown(name):
     assert tables, f"'{name}' lieferte keine Tabelle"
 
     for t in tables:
-        md = t.to_markdown()
+        # Ohne Caption, damit hier wirklich nur das Tabellen-Grid geprüft wird
+        md = t.to_markdown(include_caption=False)
         lines = md.strip().split("\n")
         assert len(lines) >= 2, f"'{name}': zu wenige Zeilen"
         assert set(lines[1].replace("|", "").split()) == {"---"}, f"'{name}': Trennzeile fehlt"
@@ -31,15 +32,27 @@ def test_example_parses_to_valid_markdown(name):
 
 
 def test_example_rowspan_colspan_grid():
-    result = TableParser(TEST_TABLES["Mit rowspan/colspan"]).parse_to_markdown()[0]
-    assert "dito (Kategorie)" in result
-    assert "| Test | Alpha | Beta |" in result
+    """Der gestapelte Header wird zusammengeführt, nicht als Datenzeile ausgegeben."""
+    table = TableParser(TEST_TABLES["Mit rowspan/colspan"]).parse()[0]
+    assert table.headers == [
+        "Kategorie",
+        "Details - Unterpunkt A",
+        "Details - Unterpunkt B",
+    ]
+    assert table.rows == [["Test", "Alpha", "Beta"]]
 
 
-def test_example_nested_tables_both_extracted():
+def test_example_nested_tables_emitted_once():
+    """Die innere Tabelle steckt bereits im Text der äußeren Zelle."""
     tables = TableParser(TEST_TABLES["Verschachtelte Tabellen"]).parse()
-    # Innere und äußere Tabelle werden jeweils als eigene Tabelle extrahiert
-    assert len(tables) == 2
+    assert len(tables) == 1
+
+
+def test_example_caption_is_extracted():
+    table = TableParser(TEST_TABLES["Mit caption"]).parse()[0]
+    assert table.caption == "Verkaufsübersicht"
+    assert table.to_markdown().startswith("**Verkaufsübersicht**")
+    assert "Verkaufsübersicht" not in table.to_markdown(include_caption=False)
 
 
 def test_example_confluence_no_fake_headers():

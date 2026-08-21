@@ -3,6 +3,7 @@ import io
 import json
 from dataclasses import dataclass
 from enum import Enum
+from typing import Optional
 
 
 class RowspanStrategy(Enum):
@@ -22,6 +23,9 @@ class ParseConfig:
     keep_bold: bool = True     # <b> / <strong> behalten
     keep_italic: bool = True   # <i> / <em> behalten
     
+    # Verbindet die Ebenen eines gestapelten Headers, z.B. "Peak positions - US"
+    header_separator: str = " - "
+
     # Technisches
     parser_library: str = "lxml" # oder 'html.parser'
 
@@ -30,9 +34,15 @@ class ParsedTable:
     """Das Ergebnis einer Konvertierung (zuvor MarkdownTable)."""
     headers: list[str]
     rows: list[list[str]]
-    
-    def to_markdown(self) -> str:
-        """Rendert die Tabelle zu einem Markdown-String."""
+    caption: Optional[str] = None
+
+    def to_markdown(self, include_caption: bool = True) -> str:
+        """
+        Rendert die Tabelle zu einem Markdown-String.
+
+        Die <caption> wird als fette Zeile vorangestellt — für ein LLM ist der
+        Tabellentitel oft die wichtigste Information am Chunk.
+        """
         if not self.headers and not self.rows:
             return ""
             
@@ -56,8 +66,11 @@ class ParsedTable:
             # Abschneiden falls zu lang
             current_row = current_row[:cols]
             lines.append(f"| {' | '.join(current_row)} |")
-            
-        return "\n".join(lines)
+
+        table = "\n".join(lines)
+        if include_caption and self.caption:
+            return f"**{self.caption}**\n\n{table}"
+        return table
 
     # Abwärtskompatibilität: Falls jemand schon to_string() nutzt
     def to_string(self) -> str:

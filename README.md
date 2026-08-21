@@ -122,6 +122,22 @@ Options:
 | `--no-links` / `--no-bold` / `--no-italic` | Strip the respective inline formatting |
 | `--parser` | BeautifulSoup backend (`lxml` default, or `html.parser`) |
 
+### Stacked headers and captions
+
+Tables with a multi-row header — a `<th rowspan="2">` next to a grouped
+`<th colspan="3">`, common in discographies and financial reports — get their
+header levels merged, so the second header row never ends up as data:
+
+```python
+table = TableParser(html).parse()[0]
+table.headers   # ['Title', 'Peak positions - US', 'Peak positions - AUS']
+table.caption   # 'Studio albums'  (from <caption>, None if absent)
+```
+
+The separator is configurable via `ParseConfig(header_separator=" / ")`. The
+caption is prepended to the Markdown as a bold line — turn it off with
+`table.to_markdown(include_caption=False)`.
+
 ## AI Framework Integrations
 
 Every table becomes its own document, so retrieval never splits a table in half.
@@ -193,6 +209,8 @@ docs = HTMLTableRescuerReader(config=config).load_data("page.html")
 * [x] Clean Markdown export
 * [x] **Data Exports:** JSON and CSV serialization from the `ParsedTable` object
 * [x] **CLI:** `html-table-rescuer` command with file/URL/stdin input and Markdown/JSON/CSV output
+* [x] **Stacked headers:** multi-row headers are merged into one (`Peak positions - US`) instead of leaking into the data
+* [x] **Table captions:** `<caption>` is extracted into `ParsedTable.caption`, prepended to the Markdown, and passed to every integration's metadata
 * [x] **AI Integrations:** Ready-to-use `LangChain` Document Loader, `LlamaIndex` Reader (works with `SimpleDirectoryReader`), and `Haystack` Converter
 * [x] Robust against broken real-world HTML: invalid `colspan`/`rowspan` values, HTML comments, and oversized spans are handled gracefully
 
@@ -203,11 +221,11 @@ methodology and reproduction steps in **[docs/BENCHMARKS.md](docs/BENCHMARKS.md)
 
 | | Result |
 |---|---|
-| `dito` fill overhead | **+1.8% tokens** vs leaving cells empty (only 3.5% of cells are span continuations) |
-| Markdown vs JSON output | JSON costs **+55% tokens** for the same tables |
-| Speed vs `pandas.read_html` | pandas is **2.6x faster** — use it if your HTML is clean |
+| `dito` fill overhead | **+1.5% tokens** vs leaving cells empty (only 3% of cells are span continuations) |
+| Markdown vs JSON output | JSON costs **+78% tokens** for the same tables |
+| Speed vs `pandas.read_html` | pandas is **2.9x faster** — use it if your HTML is clean |
 | Malformed markup | survived **8/8** cases; pandas raises `ValueError` on 2 (`colspan="abc"`, `colspan="2.5"`) |
-| Span resolution | identical grid to pandas on 24/30; differences are mostly multi-row headers, [a known limitation](docs/BENCHMARKS.md#known-limitations) |
+| Span resolution | identical grid to pandas on **27/30**; the 3 remaining differences are not about spans |
 
 ## 🤝 Contributing
 
