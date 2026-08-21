@@ -196,6 +196,19 @@ docs = HTMLTableRescuerReader(config=config).load_data("page.html")
 * [x] **AI Integrations:** Ready-to-use `LangChain` Document Loader, `LlamaIndex` Reader (works with `SimpleDirectoryReader`), and `Haystack` Converter
 * [x] Robust against broken real-world HTML: invalid `colspan`/`rowspan` values, HTML comments, and oversized spans are handled gracefully
 
+## Benchmarks
+
+Measured on 30 real Wikipedia tables that use `rowspan`/`colspan` — full numbers,
+methodology and reproduction steps in **[docs/BENCHMARKS.md](docs/BENCHMARKS.md)**.
+
+| | Result |
+|---|---|
+| `dito` fill overhead | **+1.8% tokens** vs leaving cells empty (only 3.5% of cells are span continuations) |
+| Markdown vs JSON output | JSON costs **+55% tokens** for the same tables |
+| Speed vs `pandas.read_html` | pandas is **2.6x faster** — use it if your HTML is clean |
+| Malformed markup | survived **8/8** cases; pandas raises `ValueError` on 2 (`colspan="abc"`, `colspan="2.5"`) |
+| Span resolution | identical grid to pandas on 24/30; differences are mostly multi-row headers, [a known limitation](docs/BENCHMARKS.md#known-limitations) |
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
