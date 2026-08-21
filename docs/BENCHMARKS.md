@@ -31,35 +31,35 @@ writes nothing. The concern is that duplicating content burns context window.
 
 | Variant | Total tokens | Median/table | vs `empty` |
 |---|---|---|---|
-| `empty` | 41,685 | 1,142 | — |
-| `repeat` | 42,317 | 1,148 | +1.5% |
-| `fill_dito` | 42,450 | 1,150 | **+1.8%** |
-| JSON (`to_json`) | 64,788 | 1,169 | +55.4% |
+| `empty` | 40,023 | 978 | — |
+| `repeat` | 40,529 | 978 | +1.3% |
+| `fill_dito` | 40,638 | 984 | **+1.5%** |
+| JSON (`to_json`) | 71,322 | 1,108 | +78.2% |
 
 **The overhead is much smaller than it looks, because span continuations are
-rare.** Across the corpus only **3.5% of grid cells** (63 of 1,789) are span
+rare.** Across the corpus only **3.0% of grid cells** (53 of 1,744) are span
 continuations — and that fraction is the only thing any fill strategy can
-affect. The other 96.5% of the table is identical no matter what you pick.
+affect. The other 97% of the table is identical no matter what you pick.
 
 Per-table, though, the spread is wide:
 
 | Variant | Median overhead | Max overhead |
 |---|---|---|
-| `repeat` | 0.0% | 55.7% |
-| `fill_dito` | 0.3% | 57.0% |
+| `repeat` | 0.0% | 54.4% |
+| `fill_dito` | 0.0% | 55.7% |
 
 So: for a typical table the choice is free, and for a span-heavy one it is
 expensive. If you are chunking a few thousand tables, measure your own corpus
 rather than trusting the median.
 
-**`fill_dito` costs 0.3 percentage points more than `repeat`** at the median.
-What you get for it is a marker: the model can tell "this value continues from
-above" apart from "this value was independently repeated". If that distinction
-does not matter to your prompt, `repeat` is strictly cheaper — and if you do not
-need the context at all, `empty` is cheapest.
+**`fill_dito` is free at the median** and costs 0.2 percentage points more than
+`repeat` overall. What you get for it is a marker: the model can tell "this value
+continues from above" apart from "this value was independently repeated". If that
+distinction does not matter to your prompt, `repeat` is marginally cheaper — and
+if you do not need the context at all, `empty` is cheapest.
 
 **Markdown beats JSON by a wide margin.** Dumping the same tables as JSON costs
-**55% more tokens**, because every row repeats every key. That gap dwarfs the
+**78% more tokens**, because every row repeats every key. That gap dwarfs the
 entire strategy question — the fill strategy is a rounding error next to the
 choice of output format.
 
@@ -83,34 +83,34 @@ where it wins.
 
 | | Total (30 tables) | Per table |
 |---|---|---|
-| `pandas.read_html` | 48 ms | 1.6 ms |
-| `html-table-rescuer` | 124 ms | 4.1 ms |
+| `pandas.read_html` | 43 ms | 1.4 ms |
+| `html-table-rescuer` | 126 ms | 4.2 ms |
 
-**pandas is ~2.6x faster.** If you are parsing at volume and your HTML is clean,
+**pandas is ~2.9x faster.** If you are parsing at volume and your HTML is clean,
 that matters. Our parser does more per cell (recursive inline-formatting,
 Markdown escaping, link preservation) and does not have pandas' C-backed
 fast path.
 
-### Span resolution — agreement on 24 of 30
+### Span resolution — agreement on 27 of 30
 
 | Result | Count |
 |---|---|
-| Identical grid shape | 24/30 |
-| Different grid shape | 6/30 |
-| — of which: multi-row headers | 3 |
+| Identical grid shape | 27/30 |
+| Different grid shape | 3/30 |
+| — of which: multi-row headers | 0 |
 | Either tool failed | 0/30 |
 
 pandas resolves `rowspan`/`colspan` correctly. On well-formed tables the two
-tools agree, and where they differ it is usually not about spans:
+tools agree, and the three remaining differences are not about spans:
 
-- **3 tables: multi-row headers.** pandas promotes a stacked header into a
-  `MultiIndex`; we keep only the first row as the header, so the second header
-  row shows up as a data row. **pandas is more correct here** — this is a known
-  limitation, see below.
 - **2 tables: Wikipedia navboxes.** Not data tables at all; both tools produce
   something meaningless, just with different row counts.
 - **1 table: the periodic table.** pandas failed to detect a header at all
   (columns came out as `0, 1, 2…`); we detected it correctly.
+
+> Earlier versions scored 24/30 here. Three of the six differences were
+> multi-row headers, where pandas was more correct — that gap was closed in
+> 0.4.0 by merging stacked headers, which is what moved the number to 27/30.
 
 ### Malformed markup — we win
 
@@ -148,15 +148,25 @@ to avoid a pandas dependency — the base install is ~5 MB against pandas' ~70 M
 
 Found by these benchmarks, listed here rather than hidden:
 
-- **Multi-row headers are not merged.** A table with a stacked header
-  (`<th rowspan="2">` next to grouped `<th colspan="3">`) keeps only the first
-  row as the header; the second lands in the body. pandas handles this with a
-  `MultiIndex`. Affected 3 of 30 corpus tables.
-- **Nested tables are flattened** into the containing cell's text (the inner
-  table is not emitted separately — that part is deliberate, to avoid duplicate
-  output).
+- **Nested tables are flattened** into the containing cell's text. Only
+  top-level tables are emitted, so the inner table's content appears once — as
+  text inside the cell that contains it — rather than as a table of its own.
 - **Speed**: see above. No fast path; the parser is optimised for correctness on
   messy input, not throughput on clean input.
+- **Single-row headers with `colspan` leave continuation cells empty.** A lone
+  `<th colspan="2">Department</th>` renders as `| Department |  |`. Merging only
+  kicks in for genuinely stacked headers, to keep existing output stable.
+
+### Fixed since the first run of these benchmarks
+
+- **Multi-row headers** were not merged; a stacked header put its second row into
+  the body. Fixed in 0.4.0 — 3 of 30 corpus tables were affected, and grid
+  agreement with pandas rose from 24/30 to 27/30.
+- **Nested tables were emitted twice**, once flattened into the containing cell
+  and once as a separate table, duplicating content in any downstream index.
+  Fixed in 0.4.0. (An earlier revision of this document claimed the inner table
+  was already suppressed — that was wrong.)
+- **`<style>`/`<script>` content leaked into cells.** Fixed in 0.4.0.
 
 ## What is deliberately *not* in scope
 
